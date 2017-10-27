@@ -12,6 +12,24 @@
 <body>
   <script>
     var socket = io();
+    var myId = null;
+
+    socket.on('connect', function () {
+      myId = socket.id;
+      console.log('my id', myId);
+    });
+    socket.on('joined', function (data) {
+      if (myId === data.id) {
+        return;
+      }
+      console.log('someone joined', data.id);
+    });
+    socket.on('left', function () {
+      console.log('someone left');
+    });
+    socket.on('tick', function () {
+      console.log('tick occured');
+    });
   </script>
 </body>
 
