@@ -1,0 +1,25 @@
+{
+  "name": "hackathonstuttgart2017backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ToolboxBodensee/HackathonStuttgart2017Backend.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ToolboxBodensee/HackathonStuttgart2017Backend/issues"
+  },
+  "homepage": "https://github.com/ToolboxBodensee/HackathonStuttgart2017Backend#readme",
+  "dependencies": {
+    "express": "^4.16.2",
+    "ramda": "^0.25.0",
+    "socket.io": "^2.0.4"
+  }
+}
