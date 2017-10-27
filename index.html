@@ -20,9 +20,10 @@
     });
     socket.on('joined', function (data) {
       if (myId === data.id) {
+        console.log('i joined. my postion', data.position);        
         return;
       }
-      console.log('someone joined', data.id);
+      console.log('someone joined', data);
     });
     socket.on('left', function () {
       console.log('someone left');

@@ -1,19 +1,29 @@
 const WIDTH = 1280;
 const HEIGHT = 768;
 
+// List of userPoints { 'aaaa': [{x,y},{x,y},{x,y}], ...}
+const points = {};
+
 module.exports = function configureSocketIO(io) {
   //********************************************************************************
   // FROM CLIENT EVENTS
   //********************************************************************************
   function clientConnected(socket) {
-    console.log('a user connected', socket.id);
+    const id = socket.id;
+    console.log('a user connected', id);
+
+    // Add a new list to points object
+    points[id] = [];
 
     // Place new player random on the map
+    const position = {
+      x: Math.random() * WIDTH,
+      y: Math.random() * HEIGHT
+    }
+    points[id].push(position);
 
-
-
-    // Notify everyone about the new player
-    someoneJoined(socket);
+    // Notify everyone about the new player and his position
+    someoneJoined(id, position);
   }
 
   function clientDisconnected(socket) {
@@ -29,9 +39,10 @@ module.exports = function configureSocketIO(io) {
   //********************************************************************************
   // TO FRONTEND EVENTS
   //********************************************************************************
-  function someoneJoined(socket) {
+  function someoneJoined(id, position) {
     io.emit('joined', {
-      id: socket.id
+      id,
+      position
     });
   }
 
