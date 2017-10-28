@@ -14,7 +14,7 @@
   "author": "",
   "license": "ISC",
   "engines": {
-    "node": ">=8.5.0"    
+    "node": ">=8.5.0"
   },
   "bugs": {
     "url": "https://github.com/ToolboxBodensee/HackathonStuttgart2017Backend/issues"
@@ -24,6 +24,8 @@
     "chance": "^1.0.12",
     "express": "^4.16.2",
     "ramda": "^0.25.0",
-    "socket.io": "^2.0.4"
+    "socket.io": "^2.0.4",
+    "winston": "^3.0.0-rc1",
+    "winston-daily-rotate-file": "^1.7.2"
   }
 }

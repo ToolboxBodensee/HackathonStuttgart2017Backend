@@ -1,5 +1,6 @@
 const R = require('ramda');
 const Chance = require('chance');
+const logger = require('./log');
 
 // constants
 const WIDTH = 1280;
@@ -109,8 +110,8 @@ function lineIntersection(line1StartX, line1StartY, line1EndX, line1EndY, line2S
   //  endX  : line2EndX,
   //  endY  : line2EndY
   //};
-  //console.log("var line1 = " + JSON.stringify(line1, null, 1));
-  //console.log("var line2 = " + JSON.stringify(line2, null, 1));
+  //logger.info("var line1 = " + JSON.stringify(line1, null, 1));
+  //logger.info("var line2 = " + JSON.stringify(line2, null, 1));
   // if the lines intersect, the result contains the x and y of the intersection (treating the lines as infinite) and booleans for whether line segment 1 or line segment 2 contain the point
   let denominator, a, b, numerator1, numerator2, result = {
     x      : null,
@@ -227,7 +228,7 @@ function randomPosition() {
       break;
   }
 
-  console.log(position);
+  logger.info(position);
   return position;
 }
 
@@ -282,7 +283,7 @@ function resetGame() {
   }, players);
 }
 
-module.exports = function configureSocketIO(io) {
+module.exports = function configureSocketIO(io, app) {
   //********************************************************************************
   // FROM CLIENT EVENTS
   //********************************************************************************
@@ -306,7 +307,7 @@ module.exports = function configureSocketIO(io) {
       displaySocket.emit('playerList', players);
     } else {
       const name = socket.handshake.query.name || chance.name();
-      DEV && console.log(type, 'connected', id, name);
+      logger.info(`${type} connected ${id} ${name}`);
 
       // Attach events to socket
       socket.on('disconnect', clientDisconnected(socket));
@@ -341,7 +342,7 @@ module.exports = function configureSocketIO(io) {
   function clientDisconnected(socket) {
     return function () {
       const id = socket.id;
-      DEV && console.log(socket.type, 'disconnected', id);
+      logger.info(`${socket.type} disconnected ${id}`);
 
       // Remove user from players list
       players = R.pickBy(function (value, key) {
@@ -373,7 +374,7 @@ module.exports = function configureSocketIO(io) {
   }
 
   function displayDisconnected() {
-    DEV && console.log('Display disconnected');
+    logger.info('Display disconnected');
     gameRunning = false;
     resetGame();
 
@@ -387,7 +388,7 @@ module.exports = function configureSocketIO(io) {
    *
    */
   function displayCreated(socket) {
-    DEV && console.log('Display is initialized');
+    logger.info('Display is initialized');
   }
 
   /**
@@ -395,7 +396,7 @@ module.exports = function configureSocketIO(io) {
    */
   function displayStartedGame() {
     if (gameRunning) return;
-    DEV && console.log('Display started game');
+    logger.info('Display started game');
     gameRunning = true;
     resetGame();
 
@@ -405,7 +406,7 @@ module.exports = function configureSocketIO(io) {
       const position = randomPosition();
       const direction = randomDirection(position);
 
-      DEV && console.log('Place player', id, position, direction);
+      logger.info(`Place player ${id} ${position} ${direction}`);
 
       const point = {
         position,
@@ -416,7 +417,7 @@ module.exports = function configureSocketIO(io) {
       player.points.push(point);
     }, players);
 
-    DEV && console.log(players);
+    logger.info(players);
   }
 
   /**
@@ -424,7 +425,7 @@ module.exports = function configureSocketIO(io) {
    */
   function displayStoppedGame() {
     if (!gameRunning) return;
-    DEV && console.log('Display stopped game');
+    logger.info('Display stopped game');
     gameRunning = false;
   }
 
@@ -491,7 +492,7 @@ module.exports = function configureSocketIO(io) {
         // Check if new point is ouf screen bounds
         const pointOutsideScreen = checkScreenBoundingBox(newPoint.position);
         if (pointOutsideScreen) {
-          DEV && console.log(key, 'outside screen');
+          logger.info(`${key} outside screen`);
           player.dead = true;
           player.points = [];
           if (displaySocket) displaySocket.emit('collision', {deadPlayer: key});
@@ -501,7 +502,7 @@ module.exports = function configureSocketIO(io) {
         // Check for player collision
         const collision = checkPlayerCollision(key, lastPoint.position, newPoint.position);
         if (collision) {
-          DEV && console.log(key, 'collision');
+          logger.info(`${key} collision`);
           player.dead = true;
           player.points = [];
           if (displaySocket) displaySocket.emit('collision', collision);
@@ -531,4 +532,14 @@ module.exports = function configureSocketIO(io) {
   //********************************************************************************
   io.on('connection', clientConnected);
   const tickID = setInterval(tick, TICK_RATE);
+
+  app.get('/', function (req, res) {
+    const playerList = R.values(R.map((value) => {
+      return value.name;
+    }, players));
+
+    const result = {players: playerList, count: playerList.length};
+
+    res.json(result);
+  });
 };
