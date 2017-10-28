@@ -14,8 +14,24 @@ let lastTick = null;
 //
 let displaySocket = null;
 
+//
+let gameRunning = false;
+
 function resetGame() {
-  players = {};
+  // Reset history for every player
+  R.forEachObjIndexed(function (player, id) {
+    player.points = [];
+
+    // Place player random on the map
+    const position = {
+      x: Math.random() * WIDTH,
+      y: Math.random() * HEIGHT
+    }
+    const direction = Math.random() * 360;
+    player.position = position;
+    player.direction = direction;
+
+  }, players);
 }
 
 module.exports = function configureSocketIO(io) {
@@ -25,6 +41,7 @@ module.exports = function configureSocketIO(io) {
   function clientConnected(socket) {
     const id = socket.id;
     const type = socket.handshake.query.type || 'player';
+    socket.type = type;
 
     console.log(type + ' connected', id);
 
@@ -34,41 +51,51 @@ module.exports = function configureSocketIO(io) {
     socket.on('displayCreated', displayCreated);
 
     if (type === 'display') {
+      resetGame();
+
       displaySocket = socket;
+      displaySocket.on('startGame', displayStartedGame);
+      displaySocket.on('stopGame', displayStoppedGame);
+
       displaySocket.emit('playerList', players);
     } else {
-      // Add a new list to players object
-      players[id] = [];
+      // Add a new player to players object
+      players[id] = {
+        name: '',
+        color: '#FFFFFF',
+        points: []
+      };
 
-      // Place new player random on the map
-      const position = {
-        x: Math.random() * WIDTH,
-        y: Math.random() * HEIGHT
+      if (gameRunning) {
+        // Place player random on the map
+        const position = {
+          x: Math.random() * WIDTH,
+          y: Math.random() * HEIGHT
+        }
+        const direction = Math.random() * 360;
+        players[id].position = position;
+        players[id].direction = direction;
       }
-      const direction = Math.random() * 360;
-      players[id].push({
-        position,
-        direction
-      });
 
       // Notify everyone about the new player and his position
-      someoneJoined(id, position, direction);
+      someoneJoined(id);
     }
   }
 
   function clientDisconnected(socket) {
     return function () {
       const id = socket.id;
-      console.log('a user disconnected', id);
+      console.log(socket.type + 'disconnected', id);
 
       // Remove user from players list
       players = R.pickBy(function (value, key) {
         return key !== id;
       }, players);
 
-      // Check if this socket was the display and remove it
-      if (displaySocket && displaySocket.id === id) {
+      // If display disconnects reset everything
+      if (socket.type === 'display') {
         displaySocket = null;
+        resetGame();
       }
 
       // Notify everyone about the player who left
@@ -83,6 +110,17 @@ module.exports = function configureSocketIO(io) {
 
   function displayCreated(socket) {
     console.log('Display is initialized');
+  }
+
+  function displayStartedGame() {
+    console.log('Display started game');
+    gameRunning = true;
+    resetGame();
+  }
+
+  function displayStoppedGame() {
+    console.log('Display stopped game');    
+    gameRunning = false;
   }
 
   //********************************************************************************
@@ -114,41 +152,46 @@ module.exports = function configureSocketIO(io) {
       delta = (Date.now() - lastTick) / 1000.0;
     }
 
-    const diffs = {};
+    if (gameRunning) {
 
-    R.forEachObjIndexed(function (pointList, key) {
-      const lastPoint = R.last(pointList);
+      const diffs = {};
 
-      // Calculate x,y vec from angle      
-      const dx = Math.sin(lastPoint.direction);
-      const dy = Math.sin(lastPoint.direction);
+      R.forEachObjIndexed(function (player, key) {
+        const lastPoint = R.last(player.points);
 
-      // Translate x,y 
-      const tx = lastPoint.position.x + (PIXEL_PER_TICK * dx * delta);
-      const ty = lastPoint.position.y + (PIXEL_PER_TICK * dy * delta);
+        if (!lastPoint) return;
 
-      // Create a new point
-      const newPoint = {
-        ...lastPoint
-      };
+        // Calculate x,y vec from angle      
+        const dx = Math.sin(lastPoint.direction);
+        const dy = Math.sin(lastPoint.direction);
 
-      // Apply translation 
-      newPoint.position.x = tx;
-      newPoint.position.y = ty;
+        // Translate x,y 
+        const tx = lastPoint.position.x + (PIXEL_PER_TICK * dx * delta);
+        const ty = lastPoint.position.y + (PIXEL_PER_TICK * dy * delta);
 
-      // Add newPoint in diff object for later client update
-      diffs[key] = newPoint;
+        // Create a new point
+        const newPoint = {
+          ...lastPoint
+        };
 
-      // Add this newPoint to history
-      pointList.push(newPoint);
-    }, players);
+        // Apply translation 
+        newPoint.position.x = tx;
+        newPoint.position.y = ty;
 
-    // Send tick
-    io.emit('tick', {
-      lastTick,
-      delta,
-      diffs
-    });
+        // Add newPoint in diff object for later client update
+        diffs[key] = newPoint;
+
+        // Add this newPoint to history
+        player.points.push(newPoint);
+      }, players);
+
+      // Send tick
+      io.emit('tick', {
+        lastTick,
+        delta,
+        diffs
+      });
+    }
 
     lastTick = Date.now()
   }
