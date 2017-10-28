@@ -46,6 +46,35 @@ function checkScreenBoundingBox(point) {
   return outsideHorizontal || outsideVertical;
 }
 
+function checkPlayerCollision(id, lastPosition, newPosition) {
+  const currentPlayerDirection = {
+    x: newPosition.x - lastPosition.x,
+    y: newPosition.y - lastPosition.y
+  };
+
+  for (const otherId in players) {
+    if (otherId === id) continue;
+
+    const player = players[otherId];
+    if (player.points.length < 2) return;
+
+    for (let i = player.points.length - 1; i >= 1; i--) {
+      const checkNewPosition = player.points[i];
+      const checkLastPosition = player.points[i - 1];
+      const checkDirection = {
+        x: checkNewPosition.x - checkLastPosition.x,
+        y: checkNewPosition.y - checkLastPosition.y
+      };
+
+      if (lineIntersection(lastPosition, currentPlayerDirection, checkLastPosition, checkDirection)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 /**
  * 
  */
@@ -58,6 +87,34 @@ function radToDeg(rad) {  
  */
 function degToRad(deg) {  
   return deg * Math.PI / 180;
+}
+
+/**
+ * 
+ */
+function lineIntersection(P, r, Q, s) {
+  // line1 = P + lambda1 * r
+  // line2 = Q + lambda2 * s
+  // r and s must be normalized (length = 1)
+  // returns intersection point O of line1 with line2 = [ Ox, Oy ] 
+  // returns null if lines do not intersect or are identical
+  var PQx = Q.x - P.x;
+  var PQy = Q.y - P.y;
+  var rx = r.x;
+  var ry = r.y;
+  var rxt = -ry;
+  var ryt = rx;
+  var qx = PQx * rx + PQy * ry;
+  var qy = PQx * rxt + PQy * ryt;
+  var sx = s.x * rx + s.y * ry;
+  var sy = s.x * rxt + s.y * ryt;
+  // if lines are identical or do not cross...
+  if (sy == 0) return false;
+  const a = qx - qy * sx / sy;
+  return {
+    x: P.x + a * rx,
+    y: P.y + a * ry
+  };
 }
 
 /**
@@ -131,7 +188,9 @@ function getColor() {
     unpickedColors = R.without(color, unpickedColors);
     return color;
   } else {
-    return chance.color({format: 'hex'});
+    return chance.color({
+      format: 'hex'
+    });
   }
 }
 
@@ -161,24 +220,27 @@ module.exports = function configureSocketIO(io) {
     const type = socket.handshake.query.type || 'player';
     socket.type = type;
 
-    console.log(type, 'connected', id);
-
-    // Attach events to socket
-    socket.on('disconnect', clientDisconnected(socket));
-    socket.on('changeDirection', clientChangedDirection);
-    socket.on('displayCreated', displayCreated);
-
     if (type === DISPLAY) {
-      if (displaySocket) return;
+      if (displaySocket) {
+        socket.disconnect();
+        return;
+      }
 
       resetGame();
 
       displaySocket = socket;
+      displaySocket.on('displayCreated', displayCreated);
       displaySocket.on('startGame', displayStartedGame);
       displaySocket.on('stopGame', displayStoppedGame);
 
       displaySocket.emit('playerList', players);
     } else {
+      console.log(type, 'connected', id);
+
+      // Attach events to socket
+      socket.on('disconnect', clientDisconnected(socket));
+      socket.on('changeDirection', clientChangedDirection);
+
       // Add a new player to players object
       players[id] = {
         name: chance.name(),
@@ -338,9 +400,18 @@ module.exports = function configureSocketIO(io) {
         newPoint.position.y = ty;
 
         // Check if new point is ouf screen bounds
-        const pointOutsideScreen = checkScreenBoundingBox(newPoint);
+        const pointOutsideScreen = checkScreenBoundingBox(newPoint.position);
         if (pointOutsideScreen) {
           console.log(key, 'outside screen');
+          player.dead = true;
+          player.points = [];
+          return;
+        }
+
+        // Check for player collision
+        const collision = checkPlayerCollision(key, lastPoint.position, newPoint.position);
+        if (collision) {
+          console.log(key, 'collide');
           player.dead = true;
           player.points = [];
           return;
