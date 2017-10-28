@@ -4,9 +4,9 @@ const Chance = require('chance');
 // constants
 const WIDTH = 1280;
 const HEIGHT = 768;
-const PIXEL_PER_TICK = 40;
+const PLAYER_SPEED = 40;
 const DISPLAY = 'display';
-const TICK_RATE = 100;
+const TICK_RATE = 500;
 const STARTING_AREA_HORIZONTAL = 100;
 const STARTING_AREA_VERTICAL = 100;
 const CENTER = {
@@ -305,8 +305,8 @@ module.exports = function configureSocketIO(io) {
         const dv = vectorFromAngle(lastPoint.direction);
 
         // Create translation vector
-        const tx = lastPoint.position.x + (PIXEL_PER_TICK * dv.x * delta);
-        const ty = lastPoint.position.y + (PIXEL_PER_TICK * dv.y * delta);
+        const tx = lastPoint.position.x + (PLAYER_SPEED * dv.x * delta);
+        const ty = lastPoint.position.y + (PLAYER_SPEED * dv.y * delta);
 
         // Create a new point
         const newPoint = {
