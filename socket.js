@@ -101,12 +101,13 @@ function linesCollide(lineA, lineB) {
     return new kld.Point2D(e.position.x, e.position.y);
   });
 
-  const convertedLineA = reduceLine(lineA);
+  let convertedLineA = reduceLine(lineA);
+  convertedLineA = R.slice(-2, R.Infinity, convertedLineA);
   const convertedLineB = reduceLine(lineB);
 
   let result = kld.Intersection.intersectPolylinePolyline(convertedLineA, convertedLineB);
 
-  return result.status === "Intersection"
+  return result.status === 'Intersection';
 }
 
 /**
