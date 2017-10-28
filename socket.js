@@ -7,6 +7,12 @@ const HEIGHT = 768;
 const PIXEL_PER_TICK = 40;
 const DISPLAY = 'display';
 const TICK_RATE = 100;
+const STARTING_AREA_HORIZONTAL = 100;
+const STARTING_AREA_VERTICAL = 100;
+const CENTER = {
+  x: WIDTH * 0.5,
+  y: HEIGHT * 0.5
+};
 
 //
 const chance = new Chance();
@@ -23,7 +29,6 @@ let displaySocket = null;
 //
 let gameRunning = false;
 
-
 //********************************************************************************
 // HELPER
 //********************************************************************************
@@ -37,41 +42,73 @@ function checkScreenBoundingBox(point) {
 /**
  * 
  */
-function radToDeg(rad) {
-  return 0;
+function radToDeg(rad) {  
+  return rad * 180 / Math.PI;
 }
 
 /**
  * 
  */
-function degToRad(deg) {
-  return 0;
+function degToRad(deg) {  
+  return deg * Math.PI / 180;
 }
 
 /**
  * 
  */
 function randomPosition() {
+  const startLeft = chance.bool();
+  const startTop = chance.bool();
+
+  let x = 0;
+  let y = 0;
+
+  if (startLeft) {
+    x = chance.integer({
+      min: 5,
+      max: STARTING_AREA_HORIZONTAL
+    });
+  } else {
+    x = chance.integer({
+      min: WIDTH - STARTING_AREA_HORIZONTAL,
+      max: WIDTH - 5
+    });
+  }
+
+  if (startTop) {
+    y = chance.integer({
+      min: 5,
+      max: STARTING_AREA_VERTICAL
+    });
+  } else {
+    y = chance.integer({
+      min: HEIGHT - STARTING_AREA_VERTICAL,
+      max: HEIGHT - 5
+    });
+  }
+
   return {
-    x: chance.integer({
-      min: 0,
-      max: WIDTH
-    }),
-    y: chance.integer({
-      min: 0,
-      max: HEIGHT
-    }),
+    x,
+    y
   };
 }
 
 /**
  * Direction in radians
  */
-function randomDirection() {
-  return chance.integer({
-    min: 0,
-    max: Math.PI * 2
-  });
+function randomDirection(from) {
+  const translatedCenter = {
+    x: CENTER.x - from.x,
+    y: CENTER.y - from.y
+  };
+
+  const direction = Math.atan2(translatedCenter.y, translatedCenter.x);
+  return direction;
+
+  // return chance.integer({
+  //   min: 0,
+  //   max: Math.PI * 2
+  // });
 }
 
 function vectorFromAngle(rad) {
@@ -132,7 +169,7 @@ module.exports = function configureSocketIO(io) {
       if (gameRunning) {
         // Place player random on the map
         const position = randomPosition();
-        const direction = randomDirection();
+        const direction = randomDirection(position);
         players[id].position = position;
         players[id].direction = direction;
       }
@@ -194,7 +231,9 @@ module.exports = function configureSocketIO(io) {
     R.forEachObjIndexed(function (player, id) {
       // Place player random on the map
       const position = randomPosition();
-      const direction = randomDirection();
+      const direction = randomDirection(position);
+
+      console.log('Place player', id, position, direction);
 
       const point = {
         position,
@@ -254,7 +293,6 @@ module.exports = function configureSocketIO(io) {
     }
 
     if (gameRunning) {
-
       const diffs = {};
 
       R.forEachObjIndexed(function (player, key) {
