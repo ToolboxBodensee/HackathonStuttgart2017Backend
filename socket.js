@@ -221,11 +221,6 @@ module.exports = function configureSocketIO(io) {
     socket.type = type;
 
     if (type === DISPLAY) {
-      if (displaySocket) {
-        socket.disconnect();
-        return;
-      }
-
       resetGame();
 
       displaySocket = socket;
