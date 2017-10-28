@@ -8,10 +8,13 @@ var io = require('socket.io')(http);
 //********************************************************************************
 // EXPRESS MIDDLEWARE
 //********************************************************************************
-const publicPath = path.join(__dirname, 'node_modules', 'socket.io-client', 'dist');
+const publicPath = path.join(__dirname, 'node_modules');
 app.use('/public', express.static(publicPath));
 app.get('/', function (req, res) {
   res.sendFile(__dirname + '/index.html');
+});
+app.get('/collision', function (req, res) {
+  res.sendFile(__dirname + '/collisionTest.html');
 });
 
 //********************************************************************************

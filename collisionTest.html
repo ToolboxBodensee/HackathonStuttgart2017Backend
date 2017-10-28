@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Collision Test</title>
+
+    <script src="/public/ramda/dist/ramda.js"></script>
+</head>
+
+<body>
+
+<canvas width=400 height=400 style="background-color: cornflowerblue">
+</canvas>
+
+<script>
+  const DEV = true;
+  const WIDTH = 400;
+  const HEIGHT = 400;
+  const PLAYER_SPEED = 1800;
+  const delta = 0.16;
+  const diffs = {};
+  const players = {
+    'A': {
+      points: [{position: {x: 200, y: 300}}, {position: {x: 100, y: 100}}, {position: {x: 0, y: 0}}]
+    },
+    'B': {
+      direction: 0,
+      points   : [{position: {x: 0, y: 300}}, {position: {x: 100, y: 200}}]
+    }
+  };
+
+  function render() {
+    const canvas = document.querySelector('canvas');
+    const ctx = canvas.getContext('2d');
+
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = 'cyan';
+
+    for (const key in players) {
+      ctx.beginPath();
+      const player = players[key];
+      for (let i = 0; i < player.points.length; i++) {
+        const point = player.points[i].position;
+        ctx.lineTo(point.x, point.y);
+      }
+      ctx.stroke();
+    }
+
+  }
+
+  function update() {
+    for (const key in players) {
+      const player = players[key];
+      if (player.dead) return;
+
+      const lastPoint = R.last(player.points);
+      if (!lastPoint) return;
+
+      // Calculate x,y vec from angle
+      const dv = vectorFromAngle(player.direction);
+
+      // Create translation vector
+      const tx = lastPoint.position.x + (PLAYER_SPEED * dv.x * delta);
+      const ty = lastPoint.position.y + (PLAYER_SPEED * dv.y * delta);
+
+      // Create a new point
+      const newPoint = {
+        position : {x: tx, y: ty},
+        direction: player.direction
+      };
+
+      // Check if new point is ouf screen bounds
+      const pointOutsideScreen = checkScreenBoundingBox(newPoint.position);
+      if (pointOutsideScreen) {
+        DEV && console.log(key, 'outside screen');
+//        player.dead = true;
+//        player.points = [];
+//        if (displaySocket) displaySocket.emit('collision', {deadPlayer: key});
+//        return;
+      }
+
+      // Check for player collision
+      const collision = checkPlayerCollision(key, lastPoint.position, newPoint.position);
+      if (collision) {
+        DEV && console.log(key, 'collision');
+//        player.dead = true;
+//        player.points = [];
+//        if (displaySocket) displaySocket.emit('collision', collision);
+//        return;
+      }
+
+      // Add newPoint in diff object for later client update
+      diffs[key] = newPoint;
+
+      // Add this newPoint to history
+      player.points.push(newPoint);
+    }
+  }
+
+
+  function vectorFromAngle(rad) {
+    return {
+      x: Math.cos(rad),
+      y: Math.sin(rad)
+    };
+  }
+
+  function checkScreenBoundingBox(point) {
+    const outsideHorizontal = point.x > WIDTH || point.x < 0;
+    const outsideVertical = point.y > HEIGHT || point.y < 0;
+    return outsideHorizontal || outsideVertical;
+  }
+
+  function checkPlayerCollision(id, lastPosition, newPosition) {
+
+    for (const otherId in players) {
+      if (otherId === id) continue;
+
+      const player = players[otherId];
+      if (player.points.length < 2) return;
+
+      for (let i = player.points.length - 1; i >= 1; i--) {
+        const checkNewPosition = player.points[i].position;
+        const checkLastPosition = player.points[i - 1].position;
+
+        if (lineIntersection(
+            lastPosition.x, lastPosition.y,
+            newPosition.x, newPosition.y,
+            checkLastPosition.x, checkLastPosition.y,
+            checkNewPosition.x, checkNewPosition.y
+          )) {
+          return {
+            deadPlayer  : id,
+            collide     : true,
+            collidedWith: otherId
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function lineIntersection(line1StartX, line1StartY, line1EndX, line1EndY, line2StartX, line2StartY, line2EndX, line2EndY) {
+    //
+    //const line1 = {
+    //  startX: line1StartX,
+    //  startY: line1StartY,
+    //  endX  : line1EndX,
+    //  endY  : line1EndY
+    //};
+    //const line2 = {
+    //  startX: line2StartX,
+    //  startY: line2StartY,
+    //  endX  : line2EndX,
+    //  endY  : line2EndY
+    //};
+    //console.log("var line1 = " + JSON.stringify(line1, null, 1));
+    //console.log("var line2 = " + JSON.stringify(line2, null, 1));
+    // if the lines intersect, the result contains the x and y of the intersection (treating the lines as infinite) and booleans for whether line segment 1 or line segment 2 contain the point
+    let denominator, a, b, numerator1, numerator2, result = {
+      x      : null,
+      y      : null,
+      onLine1: false,
+      onLine2: false
+    };
+    denominator = ((line2EndY - line2StartY) * (line1EndX - line1StartX)) - ((line2EndX - line2StartX) * (line1EndY - line1StartY));
+    if (denominator === 0) {
+      return result;
+    }
+    a = line1StartY - line2StartY;
+    b = line1StartX - line2StartX;
+    numerator1 = ((line2EndX - line2StartX) * a) - ((line2EndY - line2StartY) * b);
+    numerator2 = ((line1EndX - line1StartX) * a) - ((line1EndY - line1StartY) * b);
+    a = numerator1 / denominator;
+    b = numerator2 / denominator;
+
+    // if we cast these lines infinitely in both directions, they intersect here:
+    result.x = line1StartX + (a * (line1EndX - line1StartX));
+    result.y = line1StartY + (a * (line1EndY - line1StartY));
+    /*
+            // it is worth noting that this should be the same as:
+            x = line2StartX + (b * (line2EndX - line2StartX));
+            y = line2StartX + (b * (line2EndY - line2StartY));
+            */
+    // if line1 is a segment and line2 is infinite, they intersect if:
+    if (a > 0 && a < 1) {
+      result.onLine1 = true;
+    }
+    // if line2 is a segment and line1 is infinite, they intersect if:
+    if (b > 0 && b < 1) {
+      result.onLine2 = true;
+    }
+    // if line1 and line2 are segments, they intersect if both of the above are true
+    return result.onLine1 && result.onLine2;
+  }
+
+  update();
+  render();
+
+
+</script>
+</body>
+
+</html>
