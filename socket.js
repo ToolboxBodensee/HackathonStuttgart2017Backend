@@ -11,6 +11,12 @@ let points = {};
 // 
 let lastTick = null;
 
+//
+let displaySocket = null;
+
+function resetGame() {
+  points = {};
+}
 
 module.exports = function configureSocketIO(io) {
   //********************************************************************************
@@ -19,9 +25,11 @@ module.exports = function configureSocketIO(io) {
   function clientConnected(socket) {
     const id = socket.id;
     console.log('a user connected', id);
+
     // Attach events to socket
     socket.on('disconnect', clientDisconnected(socket));
     socket.on('changeDirection', clientChangedDirection);
+    socket.on('displayCreated', clientHasCreatedDisplay(socket));
 
     // Add a new list to points object
     points[id] = [];
@@ -51,6 +59,11 @@ module.exports = function configureSocketIO(io) {
         return key !== id;
       }, points);
 
+      // Check if this socket was the display and remove it
+      if (displaySocket && displaySocket.id === id) {
+        displaySocket = null;
+      }
+
       // Notify everyone about the player who left
       someoneLeft();
     }
@@ -59,6 +72,14 @@ module.exports = function configureSocketIO(io) {
   function clientChangedDirection(socket) {
     console.log('a user changed his direction');
     someoneChangedDirection();
+  }
+
+  function clientHasCreatedDisplay(socket) {
+    return function () {
+      const id = socket.id;
+      console.log('display connected', id);
+      displaySocket = socket;
+    }
   }
 
   //********************************************************************************
@@ -104,7 +125,7 @@ module.exports = function configureSocketIO(io) {
       const ty = lastPoint.position.y + (PIXEL_PER_TICK * dy * delta);
 
       // Create a new point
-      const newPoint = { 
+      const newPoint = {
         ...lastPoint
       };
 
