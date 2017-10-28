@@ -30,6 +30,13 @@ let gameRunning = false;
 /**
  * 
  */
+function checkScreenBoundingBox(point) {
+  return (point.x >= WIDTH || point.x <= 0) || (point.y >= HEIGHT || point.y <= 0);
+}
+
+/**
+ * 
+ */
 function radToDeg(rad) {
   return 0;
 }
@@ -81,6 +88,7 @@ function resetGame() {
   // Reset history for every player
   R.forEachObjIndexed(function (player, id) {
     player.points = [];
+    player.dead = false;
   }, players);
 }
 
@@ -250,15 +258,15 @@ module.exports = function configureSocketIO(io) {
       const diffs = {};
 
       R.forEachObjIndexed(function (player, key) {
-        const lastPoint = R.last(player.points);
+        if (player.dead) return;
 
+        const lastPoint = R.last(player.points);
         if (!lastPoint) return;
 
         // Calculate x,y vec from angle
         const dv = vectorFromAngle(lastPoint.direction);
-        
 
-        // Translate x,y 
+        // Create translation vector
         const tx = lastPoint.position.x + (PIXEL_PER_TICK * dv.x * delta);
         const ty = lastPoint.position.y + (PIXEL_PER_TICK * dv.y * delta);
 
@@ -270,6 +278,15 @@ module.exports = function configureSocketIO(io) {
         // Apply translation 
         newPoint.position.x = tx;
         newPoint.position.y = ty;
+
+        // Check if new point is ouf screen bounds
+        const pointOutsideScreen = checkScreenBoundingBox(newPoint);
+        if (pointOutsideScreen) {
+          console.log(key, 'outside screen');
+          player.dead = true;
+          player.points = [];
+          return;
+        }
 
         // Add newPoint in diff object for later client update
         diffs[key] = newPoint;
