@@ -141,7 +141,7 @@ module.exports = function configureSocketIO(io) {
     const type = socket.handshake.query.type || 'player';
     socket.type = type;
 
-    console.log(type + ' connected', id);
+    console.log(type, 'connected', id);
 
     // Attach events to socket
     socket.on('disconnect', clientDisconnected(socket));
@@ -149,6 +149,8 @@ module.exports = function configureSocketIO(io) {
     socket.on('displayCreated', displayCreated);
 
     if (type === DISPLAY) {
+      if (displaySocket) return;
+      
       resetGame();
 
       displaySocket = socket;
