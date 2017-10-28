@@ -1,8 +1,10 @@
+const R = require('ramda');
+
 const WIDTH = 1280;
 const HEIGHT = 768;
 
-// List of userPoints { 'aaaa': [{x,y},{x,y},{x,y}], ...}
-const points = {};
+// List of userPoints { 'aaaa': [{x,y,direction},{x,y,direction},{x,y,direction}], ...}
+let points = {};
 
 module.exports = function configureSocketIO(io) {
   //********************************************************************************
@@ -11,6 +13,9 @@ module.exports = function configureSocketIO(io) {
   function clientConnected(socket) {
     const id = socket.id;
     console.log('a user connected', id);
+    // Attach events to socket
+    socket.on('disconnect', clientDisconnected(socket));
+    socket.on('changeDirection', clientChangedDirection);
 
     // Add a new list to points object
     points[id] = [];
@@ -20,15 +25,29 @@ module.exports = function configureSocketIO(io) {
       x: Math.random() * WIDTH,
       y: Math.random() * HEIGHT
     }
-    points[id].push(position);
+    const direction = 0;
+    points[id].push({
+      position,
+      direction
+    });
 
     // Notify everyone about the new player and his position
-    someoneJoined(id, position);
+    someoneJoined(id, position, direction);
   }
 
   function clientDisconnected(socket) {
-    console.log('a user disconnected');
-    someoneLeft();
+    return function () {
+      const id = socket.id;
+      console.log('a user disconnected', id);
+
+      // Remove user from points list
+      points = R.pickBy(function (value, key) {
+        return key !== id;
+      }, points);
+
+      // Notify everyone about the player who left
+      someoneLeft();
+    }
   }
 
   function clientChangedDirection(socket) {
@@ -39,10 +58,11 @@ module.exports = function configureSocketIO(io) {
   //********************************************************************************
   // TO FRONTEND EVENTS
   //********************************************************************************
-  function someoneJoined(id, position) {
+  function someoneJoined(id, position, direction) {
     io.emit('joined', {
       id,
-      position
+      position,
+      direction
     });
   }
 
@@ -59,6 +79,7 @@ module.exports = function configureSocketIO(io) {
   }
 
   function tick() {
+    // 
     io.emit('tick');
   }
 
@@ -66,8 +87,6 @@ module.exports = function configureSocketIO(io) {
   // EVENT MAPPING
   //********************************************************************************
   io.on('connection', clientConnected);
-  io.on('disconnect', clientDisconnected);
-  io.on('changeDirection', clientChangedDirection);
 
   const tickID = setInterval(tick, 1000);
 }
