@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/ToolboxBodensee/HackathonStuttgart2017Backend#readme",
   "dependencies": {
+    "chance": "^1.0.12",
     "express": "^4.16.2",
     "ramda": "^0.25.0",
     "socket.io": "^2.0.4"

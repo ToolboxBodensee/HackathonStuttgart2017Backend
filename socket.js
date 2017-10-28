@@ -1,9 +1,13 @@
 const R = require('ramda');
+const Chance = require('chance');
 
 // config
 const WIDTH = 1280;
 const HEIGHT = 768;
 const PIXEL_PER_TICK = 100;
+
+//
+const chance = new Chance();
 
 // List of userPoints { 'aaaa': [{x,y,direction},{x,y,direction},{x,y,direction}], ...}
 let players = {};
@@ -61,8 +65,8 @@ module.exports = function configureSocketIO(io) {
     } else {
       // Add a new player to players object
       players[id] = {
-        name: '',
-        color: '#FFFFFF',
+        name: chance.name(),
+        color: chance.color(),
         points: []
       };
 
@@ -85,7 +89,7 @@ module.exports = function configureSocketIO(io) {
   function clientDisconnected(socket) {
     return function () {
       const id = socket.id;
-      console.log(socket.type + 'disconnected', id);
+      console.log(socket.type, 'disconnected', id);
 
       // Remove user from players list
       players = R.pickBy(function (value, key) {
@@ -95,6 +99,7 @@ module.exports = function configureSocketIO(io) {
       // If display disconnects reset everything
       if (socket.type === 'display') {
         displaySocket = null;
+        gameRunning = false;
         resetGame();
       }
 
