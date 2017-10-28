@@ -6,7 +6,7 @@ const HEIGHT = 768;
 const PIXEL_PER_TICK = 100;
 
 // List of userPoints { 'aaaa': [{x,y,direction},{x,y,direction},{x,y,direction}], ...}
-let points = {};
+let players = {};
 
 // 
 let lastTick = null;
@@ -15,7 +15,7 @@ let lastTick = null;
 let displaySocket = null;
 
 function resetGame() {
-  points = {};
+  players = {};
 }
 
 module.exports = function configureSocketIO(io) {
@@ -24,29 +24,36 @@ module.exports = function configureSocketIO(io) {
   //********************************************************************************
   function clientConnected(socket) {
     const id = socket.id;
-    console.log('a user connected', id);
+    const type = socket.handshake.query.type || 'player';
+
+    console.log(type + ' connected', id);
 
     // Attach events to socket
     socket.on('disconnect', clientDisconnected(socket));
     socket.on('changeDirection', clientChangedDirection);
-    socket.on('displayCreated', clientHasCreatedDisplay(socket));
+    socket.on('displayCreated', displayCreated);
 
-    // Add a new list to points object
-    points[id] = [];
+    if (type === 'display') {
+      displaySocket = socket;
+      displaySocket.emit('playerList', players);
+    } else {
+      // Add a new list to players object
+      players[id] = [];
 
-    // Place new player random on the map
-    const position = {
-      x: Math.random() * WIDTH,
-      y: Math.random() * HEIGHT
+      // Place new player random on the map
+      const position = {
+        x: Math.random() * WIDTH,
+        y: Math.random() * HEIGHT
+      }
+      const direction = Math.random() * 360;
+      players[id].push({
+        position,
+        direction
+      });
+
+      // Notify everyone about the new player and his position
+      someoneJoined(id, position, direction);
     }
-    const direction = Math.random() * 360;
-    points[id].push({
-      position,
-      direction
-    });
-
-    // Notify everyone about the new player and his position
-    someoneJoined(id, position, direction);
   }
 
   function clientDisconnected(socket) {
@@ -54,10 +61,10 @@ module.exports = function configureSocketIO(io) {
       const id = socket.id;
       console.log('a user disconnected', id);
 
-      // Remove user from points list
-      points = R.pickBy(function (value, key) {
+      // Remove user from players list
+      players = R.pickBy(function (value, key) {
         return key !== id;
-      }, points);
+      }, players);
 
       // Check if this socket was the display and remove it
       if (displaySocket && displaySocket.id === id) {
@@ -74,12 +81,8 @@ module.exports = function configureSocketIO(io) {
     someoneChangedDirection();
   }
 
-  function clientHasCreatedDisplay(socket) {
-    return function () {
-      const id = socket.id;
-      console.log('display connected', id);
-      displaySocket = socket;
-    }
+  function displayCreated(socket) {
+    console.log('Display is initialized');
   }
 
   //********************************************************************************
@@ -138,13 +141,15 @@ module.exports = function configureSocketIO(io) {
 
       // Add this newPoint to history
       pointList.push(newPoint);
-    }, points);
+    }, players);
 
+    // Send tick
     io.emit('tick', {
       lastTick,
       delta,
       diffs
     });
+
     lastTick = Date.now()
   }
 
