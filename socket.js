@@ -6,6 +6,9 @@ const HEIGHT = 768;
 // List of userPoints { 'aaaa': [{x,y,direction},{x,y,direction},{x,y,direction}], ...}
 let points = {};
 
+// last tick
+let lastTick = null;
+
 module.exports = function configureSocketIO(io) {
   //********************************************************************************
   // FROM CLIENT EVENTS
@@ -80,7 +83,14 @@ module.exports = function configureSocketIO(io) {
 
   function tick() {
     // 
-    io.emit('tick');
+
+    let delta = 0;
+    if (lastTick) {
+      delta = Date.now() - lastTick;
+    }
+    lastTick = Date.now()
+
+    io.emit('tick', {lastTick, delta});
   }
 
   //********************************************************************************

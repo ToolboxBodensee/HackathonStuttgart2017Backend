@@ -28,8 +28,8 @@
     socket.on('left', function () {
       console.log('someone left');
     });
-    socket.on('tick', function () {
-      console.log('tick occured');
+    socket.on('tick', function (timestamp, delta) {
+      console.log('tick occured', timestamp, delta);
     });
   </script>
 </body>
