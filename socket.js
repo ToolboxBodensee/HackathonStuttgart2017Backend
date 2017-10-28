@@ -13,12 +13,16 @@ const CENTER = {
   x: WIDTH * 0.5,
   y: HEIGHT * 0.5
 };
+const COLORS = ['red', 'green', 'yellow', 'orange'];
 
 //
 const chance = new Chance();
 
 // List of userPoints { 'aaaa': [{x,y,direction},{x,y,direction},{x,y,direction}], ...}
 let players = {};
+
+//
+let unpickedColors = [];
 
 // 
 let lastTick = null;
@@ -36,7 +40,10 @@ let gameRunning = false;
  * 
  */
 function checkScreenBoundingBox(point) {
-  return (point.x >= WIDTH || point.x <= 0) || (point.y >= HEIGHT || point.y <= 0);
+  const outsideHorizontal = point.x >= WIDTH || point.x <= 0;
+  const outsideVertical = point.y >= HEIGHT || point.y <= 0;
+  console.log(point, outsideHorizontal, outsideVertical);
+  return outsideHorizontal || outsideVertical;
 }
 
 /**
@@ -118,14 +125,27 @@ function vectorFromAngle(rad) {
   }
 }
 
+function getColor() {
+  if (unpickedColors.length > 0) {
+    const color = chance.pickone(unpickedColors);
+    unpickedColors = R.without(color, unpickedColors);
+    return color;
+  } else {
+    return chance.color({format: 'hex'});
+  }
+}
+
 /**
  * 
  */
 function resetGame() {
+  unpickedColors = COLORS;
+
   // Reset history for every player
   R.forEachObjIndexed(function (player, id) {
     player.points = [];
     player.dead = false;
+    player.color = getColor();
   }, players);
 }
 
@@ -150,7 +170,7 @@ module.exports = function configureSocketIO(io) {
 
     if (type === DISPLAY) {
       if (displaySocket) return;
-      
+
       resetGame();
 
       displaySocket = socket;
@@ -162,9 +182,7 @@ module.exports = function configureSocketIO(io) {
       // Add a new player to players object
       players[id] = {
         name: chance.name(),
-        color: chance.color({
-          format: 'hex'
-        }),
+        color: getColor(),
         points: []
       };
 
