@@ -164,7 +164,6 @@ module.exports = function configureSocketIO(io) {
    */
   function clientChangedDirection(socket) {
     console.log('a user changed his direction');
-    someoneChangedDirection();
   }
 
   /**
@@ -228,13 +227,6 @@ module.exports = function configureSocketIO(io) {
    */
   function someoneLeft() {
     io.emit('left');
-  }
-
-  /**
-   * 
-   */
-  function someoneChangedDirection() {
-    io.emit('changedDirection');
   }
 
   /**
