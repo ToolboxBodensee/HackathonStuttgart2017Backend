@@ -19,7 +19,13 @@ const CENTER = {
   y: HEIGHT * 0.5
 };
 
-const COLORS = ['#EF476F', '#06D6A0', '#FFD166', '#00C0FF', '#003559'];
+const COLORS = ['#EF476F',
+  '#06D6A0',
+  '#FFD166',
+  '#00C0FF',
+  '#FFFFFF'
+  //'#003559'
+];
 
 //
 const chance = new Chance();
@@ -433,7 +439,7 @@ module.exports = function configureSocketIO(io, app) {
           console.log(`${key} collision`);
           player.dead = true;
           player.points = [];
-          if (displaySocket) displaySocket.emit('collision', collision);
+          if (displaySocket) displaySocket.emit('collision', {deadPlayer: key});
           return;
         }
 
