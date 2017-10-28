@@ -32,10 +32,10 @@ module.exports = function configureSocketIO(io) {
       y: Math.random() * HEIGHT
     }
     const direction = Math.random() * 360;
-    points[id] = {
+    points[id].push({
       position,
       direction
-    };
+    });
 
     // Notify everyone about the new player and his position
     someoneJoined(id, position, direction);
@@ -92,22 +92,31 @@ module.exports = function configureSocketIO(io) {
 
     const diffs = {};
 
-    R.forEachObjIndexed(function (element, key) {
+    R.forEachObjIndexed(function (pointList, key) {
+      const lastPoint = R.last(pointList);
+
       // Calculate x,y vec from angle      
-      const dx = Math.sin(element.direction);
-      const dy = Math.sin(element.direction);
+      const dx = Math.sin(lastPoint.direction);
+      const dy = Math.sin(lastPoint.direction);
 
       // Translate x,y 
-      const tx = element.position.x + (PIXEL_PER_TICK * dx * delta);
-      const ty = element.position.y + (PIXEL_PER_TICK * dy * delta);
+      const tx = lastPoint.position.x + (PIXEL_PER_TICK * dx * delta);
+      const ty = lastPoint.position.y + (PIXEL_PER_TICK * dy * delta);
+
+      // Create a new point
+      const newPoint = { 
+        ...lastPoint
+      };
 
       // Apply translation 
-      element.position.x = tx;
-      element.position.y = ty;
+      newPoint.position.x = tx;
+      newPoint.position.y = ty;
 
-      // Add element in diff object for later client update
-      diffs[key] = element;
+      // Add newPoint in diff object for later client update
+      diffs[key] = newPoint;
 
+      // Add this newPoint to history
+      pointList.push(newPoint);
     }, points);
 
     io.emit('tick', {
