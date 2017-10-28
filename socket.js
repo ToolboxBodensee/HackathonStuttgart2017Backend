@@ -15,6 +15,8 @@ const CENTER = {
 };
 const COLORS = ['red', 'green', 'yellow', 'orange'];
 
+const DEV = process.env.NODE_ENV !== 'prod';
+
 //
 const chance = new Chance();
 
@@ -33,6 +35,9 @@ let displaySocket = null;
 //
 let gameRunning = false;
 
+//
+let delta = 0;
+
 //********************************************************************************
 // HELPER
 //********************************************************************************
@@ -42,7 +47,6 @@ let gameRunning = false;
 function checkScreenBoundingBox(point) {
   const outsideHorizontal = point.x >= WIDTH || point.x <= 0;
   const outsideVertical = point.y >= HEIGHT || point.y <= 0;
-  console.log(point, outsideHorizontal, outsideVertical);
   return outsideHorizontal || outsideVertical;
 }
 
@@ -67,12 +71,18 @@ function checkPlayerCollision(id, lastPosition, newPosition) {
       };
 
       if (lineIntersection(lastPosition, currentPlayerDirection, checkLastPosition, checkDirection)) {
-        return true;
+        return {
+          deadPlayer: id,
+          collide: true,
+          collidedWith: otherId
+        };
       }
     }
   }
 
-  return false;
+  return {
+    collide: false
+  };
 }
 
 /**
@@ -230,11 +240,11 @@ module.exports = function configureSocketIO(io) {
 
       displaySocket.emit('playerList', players);
     } else {
-      console.log(type, 'connected', id);
+      DEV && console.log(type, 'connected', id);
 
       // Attach events to socket
       socket.on('disconnect', clientDisconnected(socket));
-      socket.on('changeDirection', clientChangedDirection);
+      socket.on('changeDirection', clientChangedDirection(socket));
 
       // Add a new player to players object
       players[id] = {
@@ -247,12 +257,17 @@ module.exports = function configureSocketIO(io) {
         // Place player random on the map
         const position = randomPosition();
         const direction = randomDirection(position);
-        players[id].position = position;
+
         players[id].direction = direction;
+
+        players[id].points = [];
+        players[id].points.push({
+          position
+        });
       }
 
       // Notify everyone about the new player and his position
-      someoneJoined(id);
+      someoneJoined(id, players[id]);
     }
   }
 
@@ -262,7 +277,7 @@ module.exports = function configureSocketIO(io) {
   function clientDisconnected(socket) {
     return function () {
       const id = socket.id;
-      console.log(socket.type, 'disconnected', id);
+      DEV && console.log(socket.type, 'disconnected', id);
 
       // Remove user from players list
       players = R.pickBy(function (value, key) {
@@ -277,7 +292,7 @@ module.exports = function configureSocketIO(io) {
       }
 
       // Notify everyone about the player who left
-      someoneLeft();
+      someoneLeft(id);
     }
   }
 
@@ -285,14 +300,21 @@ module.exports = function configureSocketIO(io) {
    * 
    */
   function clientChangedDirection(socket) {
-    console.log('a user changed his direction');
+    return function (rad) {
+      const id = socket.id;
+      const last = players[id].direction || 0;
+      const newDirection = last + (rad * delta * 0.05);
+      // DEV && console.log(last, rad, newDirection);
+
+      players[id].direction = newDirection;
+    }
   }
 
   /**
    * 
    */
   function displayCreated(socket) {
-    console.log('Display is initialized');
+    DEV && console.log('Display is initialized');
   }
 
   /**
@@ -300,7 +322,7 @@ module.exports = function configureSocketIO(io) {
    */
   function displayStartedGame() {
     if (gameRunning) return;
-    console.log('Display started game');
+    DEV && console.log('Display started game');
     gameRunning = true;
     resetGame();
 
@@ -310,17 +332,18 @@ module.exports = function configureSocketIO(io) {
       const position = randomPosition();
       const direction = randomDirection(position);
 
-      console.log('Place player', id, position, direction);
+      DEV && console.log('Place player', id, position, direction);
 
       const point = {
         position,
         direction
       };
 
+      player.direction = direction;
       player.points.push(point);
     }, players);
 
-    console.log(players);
+    DEV && console.log(players);
   }
 
   /**
@@ -328,7 +351,7 @@ module.exports = function configureSocketIO(io) {
    */
   function displayStoppedGame() {
     if (!gameRunning) return;
-    console.log('Display stopped game');
+    DEV && console.log('Display stopped game');
     gameRunning = false;
   }
 
@@ -338,19 +361,20 @@ module.exports = function configureSocketIO(io) {
   /**
    * 
    */
-  function someoneJoined(id, position, direction) {
+  function someoneJoined(id, player) {
     io.emit('joined', {
       id,
-      position,
-      direction
+      player
     });
   }
 
   /**
    * 
    */
-  function someoneLeft() {
-    io.emit('left');
+  function someoneLeft(id) {
+    io.emit('left', {
+      id
+    });
   }
 
   /**
@@ -364,7 +388,7 @@ module.exports = function configureSocketIO(io) {
    * 
    */
   function tick() {
-    let delta = 0;
+
     if (lastTick) {
       delta = (Date.now() - lastTick) / 1000.0;
     }
@@ -379,7 +403,7 @@ module.exports = function configureSocketIO(io) {
         if (!lastPoint) return;
 
         // Calculate x,y vec from angle
-        const dv = vectorFromAngle(lastPoint.direction);
+        const dv = vectorFromAngle(player.direction);
 
         // Create translation vector
         const tx = lastPoint.position.x + (PLAYER_SPEED * dv.x * delta);
@@ -387,7 +411,8 @@ module.exports = function configureSocketIO(io) {
 
         // Create a new point
         const newPoint = {
-          ...lastPoint
+          ...lastPoint,
+          direction: player.direction
         };
 
         // Apply translation 
@@ -397,7 +422,7 @@ module.exports = function configureSocketIO(io) {
         // Check if new point is ouf screen bounds
         const pointOutsideScreen = checkScreenBoundingBox(newPoint.position);
         if (pointOutsideScreen) {
-          console.log(key, 'outside screen');
+          DEV && console.log(key, 'outside screen');
           player.dead = true;
           player.points = [];
           return;
@@ -405,12 +430,14 @@ module.exports = function configureSocketIO(io) {
 
         // Check for player collision
         const collision = checkPlayerCollision(key, lastPoint.position, newPoint.position);
-        if (collision) {
-          console.log(key, 'collide');
-          player.dead = true;
-          player.points = [];
-          return;
-        }
+        // if (collision.collide) {
+        //   DEV && console.log(key, 'collide');
+        //   player.dead = true;
+        //   player.points = [];
+
+        //   displaySocket.emit('collide', collision);
+        //   return;
+        // }
 
         // Add newPoint in diff object for later client update
         diffs[key] = newPoint;
