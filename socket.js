@@ -7,13 +7,14 @@ const HEIGHT = 768;
 const PLAYER_SPEED = 40;
 const DISPLAY = 'display';
 const TICK_RATE = 500;
-const STARTING_AREA_HORIZONTAL = 100;
-const STARTING_AREA_VERTICAL = 100;
+const STEERING_SPEED = 0.2;
+const STARTING_AREA_HORIZONTAL = 30;
+const STARTING_AREA_VERTICAL = 30;
 const CENTER = {
   x: WIDTH * 0.5,
   y: HEIGHT * 0.5
 };
-const COLORS = ['red', 'green', 'yellow', 'orange'];
+const COLORS = ['red', 'green', 'yellow', 'orange', 'cyan'];
 
 const DEV = process.env.NODE_ENV !== 'prod';
 
@@ -33,7 +34,7 @@ let lastTick = null;
 let displaySocket = null;
 
 //
-let gameRunning = false;
+let gameRunning = true;
 
 //
 let delta = 0;
@@ -42,19 +43,15 @@ let delta = 0;
 // HELPER
 //********************************************************************************
 /**
- * 
+ *
  */
 function checkScreenBoundingBox(point) {
-  const outsideHorizontal = point.x >= WIDTH || point.x <= 0;
-  const outsideVertical = point.y >= HEIGHT || point.y <= 0;
+  const outsideHorizontal = point.x > WIDTH || point.x < 0;
+  const outsideVertical = point.y > HEIGHT || point.y < 0;
   return outsideHorizontal || outsideVertical;
 }
 
 function checkPlayerCollision(id, lastPosition, newPosition) {
-  const currentPlayerDirection = {
-    x: newPosition.x - lastPosition.x,
-    y: newPosition.y - lastPosition.y
-  };
 
   for (const otherId in players) {
     if (otherId === id) continue;
@@ -63,108 +60,175 @@ function checkPlayerCollision(id, lastPosition, newPosition) {
     if (player.points.length < 2) return;
 
     for (let i = player.points.length - 1; i >= 1; i--) {
-      const checkNewPosition = player.points[i];
-      const checkLastPosition = player.points[i - 1];
-      const checkDirection = {
-        x: checkNewPosition.x - checkLastPosition.x,
-        y: checkNewPosition.y - checkLastPosition.y
-      };
+      const checkNewPosition = player.points[i].position;
+      const checkLastPosition = player.points[i - 1].position;
 
-      if (lineIntersection(lastPosition, currentPlayerDirection, checkLastPosition, checkDirection)) {
+      if (lineIntersection(
+          lastPosition.x, lastPosition.y,
+          newPosition.x, newPosition.y,
+          checkLastPosition.x, checkLastPosition.y,
+          checkNewPosition.x, checkNewPosition.y
+        )) {
         return {
-          deadPlayer: id,
-          collide: true,
+          deadPlayer  : id,
+          collide     : true,
           collidedWith: otherId
         };
       }
     }
   }
 
-  return {
-    collide: false
-  };
+  return null;
 }
 
 /**
- * 
+ *
  */
-function radToDeg(rad) {  
+function radToDeg(rad) {
   return rad * 180 / Math.PI;
 }
 
 /**
- * 
+ *
  */
-function degToRad(deg) {  
+function degToRad(deg) {
   return deg * Math.PI / 180;
 }
 
-/**
- * 
- */
-function lineIntersection(P, r, Q, s) {
-  // line1 = P + lambda1 * r
-  // line2 = Q + lambda2 * s
-  // r and s must be normalized (length = 1)
-  // returns intersection point O of line1 with line2 = [ Ox, Oy ] 
-  // returns null if lines do not intersect or are identical
-  var PQx = Q.x - P.x;
-  var PQy = Q.y - P.y;
-  var rx = r.x;
-  var ry = r.y;
-  var rxt = -ry;
-  var ryt = rx;
-  var qx = PQx * rx + PQy * ry;
-  var qy = PQx * rxt + PQy * ryt;
-  var sx = s.x * rx + s.y * ry;
-  var sy = s.x * rxt + s.y * ryt;
-  // if lines are identical or do not cross...
-  if (sy == 0) return false;
-  const a = qx - qy * sx / sy;
-  return {
-    x: P.x + a * rx,
-    y: P.y + a * ry
+function lineIntersection(line1StartX, line1StartY, line1EndX, line1EndY, line2StartX, line2StartY, line2EndX, line2EndY) {
+  //
+  //const line1 = {
+  //  startX: line1StartX,
+  //  startY: line1StartY,
+  //  endX  : line1EndX,
+  //  endY  : line1EndY
+  //};
+  //const line2 = {
+  //  startX: line2StartX,
+  //  startY: line2StartY,
+  //  endX  : line2EndX,
+  //  endY  : line2EndY
+  //};
+  //console.log("var line1 = " + JSON.stringify(line1, null, 1));
+  //console.log("var line2 = " + JSON.stringify(line2, null, 1));
+  // if the lines intersect, the result contains the x and y of the intersection (treating the lines as infinite) and booleans for whether line segment 1 or line segment 2 contain the point
+  let denominator, a, b, numerator1, numerator2, result = {
+    x      : null,
+    y      : null,
+    onLine1: false,
+    onLine2: false
   };
+  denominator = ((line2EndY - line2StartY) * (line1EndX - line1StartX)) - ((line2EndX - line2StartX) * (line1EndY - line1StartY));
+  if (denominator === 0) {
+    return result;
+  }
+  a = line1StartY - line2StartY;
+  b = line1StartX - line2StartX;
+  numerator1 = ((line2EndX - line2StartX) * a) - ((line2EndY - line2StartY) * b);
+  numerator2 = ((line1EndX - line1StartX) * a) - ((line1EndY - line1StartY) * b);
+  a = numerator1 / denominator;
+  b = numerator2 / denominator;
+
+  // if we cast these lines infinitely in both directions, they intersect here:
+  result.x = line1StartX + (a * (line1EndX - line1StartX));
+  result.y = line1StartY + (a * (line1EndY - line1StartY));
+  /*
+          // it is worth noting that this should be the same as:
+          x = line2StartX + (b * (line2EndX - line2StartX));
+          y = line2StartX + (b * (line2EndY - line2StartY));
+          */
+  // if line1 is a segment and line2 is infinite, they intersect if:
+  if (a > 0 && a < 1) {
+    result.onLine1 = true;
+  }
+  // if line2 is a segment and line1 is infinite, they intersect if:
+  if (b > 0 && b < 1) {
+    result.onLine2 = true;
+  }
+  // if line1 and line2 are segments, they intersect if both of the above are true
+  return result.onLine1 && result.onLine2;
 }
 
+// /**
+//  * 
+//  */
+// function lineIntersection(P, r, Q, s) {
+//   // line1 = P + lambda1 * r
+//   // line2 = Q + lambda2 * s
+//   // r and s must be normalized (length = 1)
+//   // returns intersection point O of line1 with line2 = [ Ox, Oy ] 
+//   // returns null if lines do not intersect or are identical
+//   var PQx = Q.x - P.x;
+//   var PQy = Q.y - P.y;
+//   var rx = r.x;
+//   var ry = r.y;
+//   var rxt = -ry;
+//   var ryt = rx;
+//   var qx = PQx * rx + PQy * ry;
+//   var qy = PQx * rxt + PQy * ryt;
+//   var sx = s.x * rx + s.y * ry;
+//   var sy = s.x * rxt + s.y * ryt;
+//   // if lines are identical or do not cross...
+//   if (sy == 0) return false;
+//   const a = qx - qy * sx / sy;
+//   return {
+//     x: P.x + a * rx,
+//     y: P.y + a * ry
+//   };
+// }
+
 /**
- * 
+ *
  */
 function randomPosition() {
   const startLeft = chance.bool();
   const startTop = chance.bool();
 
-  let x = 0;
-  let y = 0;
+  let position = {};
 
-  if (startLeft) {
-    x = chance.integer({
-      min: 5,
-      max: STARTING_AREA_HORIZONTAL
-    });
-  } else {
-    x = chance.integer({
-      min: WIDTH - STARTING_AREA_HORIZONTAL,
-      max: WIDTH - 5
-    });
+  const startSector = chance.pickone(['left', 'right', 'top', 'bottom']);
+
+  switch (startSector) {
+    case 'left':
+      position = {
+        x: 0,
+        y: chance.integer({
+          min: STARTING_AREA_VERTICAL,
+          max: HEIGHT - STARTING_AREA_VERTICAL
+        })
+      };
+      break;
+    case 'right':
+      position = {
+        x: WIDTH,
+        y: chance.integer({
+          min: STARTING_AREA_VERTICAL,
+          max: HEIGHT - STARTING_AREA_VERTICAL
+        })
+      };
+      break;
+    case 'top':
+      position = {
+        x: chance.integer({
+          min: STARTING_AREA_HORIZONTAL,
+          max: WIDTH - STARTING_AREA_HORIZONTAL
+        }),
+        y: 0
+      };
+      break;
+    case 'bottom':
+      position = {
+        x: chance.integer({
+          min: STARTING_AREA_HORIZONTAL,
+          max: WIDTH - STARTING_AREA_HORIZONTAL
+        }),
+        y: HEIGHT
+      };
+      break;
   }
 
-  if (startTop) {
-    y = chance.integer({
-      min: 5,
-      max: STARTING_AREA_VERTICAL
-    });
-  } else {
-    y = chance.integer({
-      min: HEIGHT - STARTING_AREA_VERTICAL,
-      max: HEIGHT - 5
-    });
-  }
-
-  return {
-    x,
-    y
-  };
+  console.log(position);
+  return position;
 }
 
 /**
@@ -189,7 +253,7 @@ function vectorFromAngle(rad) {
   return {
     x: Math.cos(rad),
     y: Math.sin(rad)
-  }
+  };
 }
 
 function getColor() {
@@ -205,7 +269,7 @@ function getColor() {
 }
 
 /**
- * 
+ *
  */
 function resetGame() {
   unpickedColors = COLORS;
@@ -223,7 +287,7 @@ module.exports = function configureSocketIO(io) {
   // FROM CLIENT EVENTS
   //********************************************************************************
   /**
-   * 
+   *
    */
   function clientConnected(socket) {
     const id = socket.id;
@@ -231,16 +295,18 @@ module.exports = function configureSocketIO(io) {
     socket.type = type;
 
     if (type === DISPLAY) {
-      resetGame();
+      //resetGame(); TODO UNCOMMENT THIS AGAIN
 
       displaySocket = socket;
+      displaySocket.on('disconnect', displayDisconnected);
       displaySocket.on('displayCreated', displayCreated);
       displaySocket.on('startGame', displayStartedGame);
       displaySocket.on('stopGame', displayStoppedGame);
 
       displaySocket.emit('playerList', players);
     } else {
-      DEV && console.log(type, 'connected', id);
+      const name = socket.handshake.query.name || chance.name();
+      DEV && console.log(type, 'connected', id, name);
 
       // Attach events to socket
       socket.on('disconnect', clientDisconnected(socket));
@@ -248,10 +314,12 @@ module.exports = function configureSocketIO(io) {
 
       // Add a new player to players object
       players[id] = {
-        name: chance.name(),
-        color: getColor(),
+        name  : name,
+        color : getColor(),
         points: []
       };
+
+      socket.emit('connectionSuccess', players[id]);
 
       if (gameRunning) {
         // Place player random on the map
@@ -259,11 +327,7 @@ module.exports = function configureSocketIO(io) {
         const direction = randomDirection(position);
 
         players[id].direction = direction;
-
-        players[id].points = [];
-        players[id].points.push({
-          position
-        });
+        players[id].points = [{position, direction}];
       }
 
       // Notify everyone about the new player and his position
@@ -272,7 +336,7 @@ module.exports = function configureSocketIO(io) {
   }
 
   /**
-   * 
+   *
    */
   function clientDisconnected(socket) {
     return function () {
@@ -284,41 +348,50 @@ module.exports = function configureSocketIO(io) {
         return key !== id;
       }, players);
 
-      // If display disconnects reset everything
-      if (socket.type === 'display') {
-        displaySocket = null;
-        gameRunning = false;
-        resetGame();
-      }
+      //// If display disconnects reset everything
+      //if (socket.type === 'display') {
+      //  displaySocket = null;
+      //  gameRunning = false;
+      //  resetGame();
+      //}
 
       // Notify everyone about the player who left
       someoneLeft(id);
-    }
+    };
   }
 
   /**
-   * 
+   *
    */
   function clientChangedDirection(socket) {
     return function (rad) {
       const id = socket.id;
       const last = players[id].direction || 0;
-      const newDirection = last + (rad * delta * 0.05);
-      // DEV && console.log(last, rad, newDirection);
 
-      players[id].direction = newDirection;
-    }
+      players[id].direction = last + (rad * delta * STEERING_SPEED);
+    };
+  }
+
+  function displayDisconnected() {
+    DEV && console.log('Display disconnected');
+    gameRunning = false;
+    resetGame();
+
+    // Reset history for every player
+    R.forEachObjIndexed(function (player, id) {
+      io.to(id).emit('changeColor', player.color);
+    }, players);
   }
 
   /**
-   * 
+   *
    */
   function displayCreated(socket) {
     DEV && console.log('Display is initialized');
   }
 
   /**
-   * 
+   *
    */
   function displayStartedGame() {
     if (gameRunning) return;
@@ -347,7 +420,7 @@ module.exports = function configureSocketIO(io) {
   }
 
   /**
-   * 
+   *
    */
   function displayStoppedGame() {
     if (!gameRunning) return;
@@ -359,7 +432,7 @@ module.exports = function configureSocketIO(io) {
   // TO FRONTEND EVENTS
   //********************************************************************************
   /**
-   * 
+   *
    */
   function someoneJoined(id, player) {
     io.emit('joined', {
@@ -369,7 +442,7 @@ module.exports = function configureSocketIO(io) {
   }
 
   /**
-   * 
+   *
    */
   function someoneLeft(id) {
     io.emit('left', {
@@ -378,14 +451,14 @@ module.exports = function configureSocketIO(io) {
   }
 
   /**
-   * 
+   *
    */
   function collisionOccured() {
     io.emit('collision');
   }
 
   /**
-   * 
+   *
    */
   function tick() {
 
@@ -411,13 +484,9 @@ module.exports = function configureSocketIO(io) {
 
         // Create a new point
         const newPoint = {
-          ...lastPoint,
+          position : {x: tx, y: ty},
           direction: player.direction
         };
-
-        // Apply translation 
-        newPoint.position.x = tx;
-        newPoint.position.y = ty;
 
         // Check if new point is ouf screen bounds
         const pointOutsideScreen = checkScreenBoundingBox(newPoint.position);
@@ -425,19 +494,19 @@ module.exports = function configureSocketIO(io) {
           DEV && console.log(key, 'outside screen');
           player.dead = true;
           player.points = [];
+          if (displaySocket) displaySocket.emit('collision', {deadPlayer: key});
           return;
         }
 
         // Check for player collision
         const collision = checkPlayerCollision(key, lastPoint.position, newPoint.position);
-        // if (collision.collide) {
-        //   DEV && console.log(key, 'collide');
-        //   player.dead = true;
-        //   player.points = [];
-
-        //   displaySocket.emit('collide', collision);
-        //   return;
-        // }
+        if (collision) {
+          DEV && console.log(key, 'collision');
+          player.dead = true;
+          player.points = [];
+          if (displaySocket) displaySocket.emit('collision', collision);
+          return;
+        }
 
         // Add newPoint in diff object for later client update
         diffs[key] = newPoint;
@@ -454,7 +523,7 @@ module.exports = function configureSocketIO(io) {
       });
     }
 
-    lastTick = Date.now()
+    lastTick = Date.now();
   }
 
   //********************************************************************************
@@ -462,4 +531,4 @@ module.exports = function configureSocketIO(io) {
   //********************************************************************************
   io.on('connection', clientConnected);
   const tickID = setInterval(tick, TICK_RATE);
-}
+};
