@@ -2,37 +2,18 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <title>Document</title>
-  <script src="/public/socket.io-client/dist/socket.io.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <script src="/public/socket.io-client/dist/socket.io.js"></script>
 </head>
 
 <body>
 
-  <script>
-    var socket = io();
-    var myId = null;
-
-    socket.on('connect', function () {
-      myId = socket.id;
-      console.log('my id', myId);
-    });
-    socket.on('joined', function (data) {
-      if (myId === data.id) {
-        console.log('i joined. my postion', data.position);        
-        return;
-      }
-      console.log('someone joined', data);
-    });
-    socket.on('left', function () {
-      console.log('someone left');
-    });
-    socket.on('tick', function (data) {
-      console.log('tick');
-    });
-  </script>
+<script>
+  const socket = io({query: 'type=bot'});
+</script>
 </body>
 
 </html>

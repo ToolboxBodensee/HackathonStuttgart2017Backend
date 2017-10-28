@@ -1,14 +1,16 @@
 const R = require('ramda');
 const Chance = require('chance');
+const kld = require('kld-intersections');
 const logger = require('./log');
+
 
 // constants
 const WIDTH = 1280;
 const HEIGHT = 768;
-const PLAYER_SPEED = 80;
-const MAX_SEGMENTS = 40;
+const PLAYER_SPEED = 120;
+const MAX_SEGMENTS = 22;
 const DISPLAY = 'display';
-const TICK_RATE = 500;
+const TICK_RATE = 140;
 const STEERING_SPEED = 0.3;
 const STARTING_AREA_HORIZONTAL = 30;
 const STARTING_AREA_VERTICAL = 30;
@@ -52,16 +54,15 @@ function checkScreenBoundingBox(point) {
   return outsideHorizontal || outsideVertical;
 }
 
-function checkPlayerCollision(id, playerLine) {
+function checkPlayerCollision(id, playerToCheck) {
 
   for (const otherId in players) {
     if (otherId === id) continue;
 
-    const player = players[otherId];
-    if (playerLine.length < 2 || player.points.length < 2) return;
-    const otherLine = player.points;
+    const leftLine = playerToCheck.points;
+    const rightLine = players[otherId].points;
 
-    const collide = linesCollide(playerLine, otherLine);
+    const collide = linesCollide(leftLine, rightLine);
 
     if (collide) {
       return {
@@ -90,90 +91,17 @@ function degToRad(deg) {
 }
 
 function linesCollide(lineA, lineB) {
-  for (let k = lineA.length - 1; k >= 1; k--) {
-    for (let j = lineB.length - 1; j >= 1; j--) {
-      const lineASegment = {from: lineA[k - 1], to: lineA[k]};
-      const lineBSegment = {from: lineB[j - 1], to: lineB[k]};
-      if (segmentIntersection(
-          lineASegment.from,
-          lineASegment.to,
-          lineBSegment.from,
-          lineBSegment.to
-        )) {
-        return true;
-      }
-    }
-  }
-  return false;
+  const reduceLine = R.map(function (e) {
+    return new kld.Point2D(e.position.x, e.position.y);
+  });
+
+  const convertedLineA = reduceLine(lineA);
+  const convertedLineB = reduceLine(lineB);
+
+  let result = kld.Intersection.intersectPolylinePolyline(convertedLineA, convertedLineB);
+
+  return result.status === "Intersection"
 }
-
-function segmentIntersection(P1From, P1To, P2From, P2To) {
-
-  // if the lines intersect, the result contains the x and y of the intersection (treating the lines as infinite) and booleans for whether line segment 1 or line segment 2 contain the point
-  let denominator, a, b, numerator1, numerator2, result = {
-    x      : null,
-    y      : null,
-    onLine1: false,
-    onLine2: false
-  };
-  denominator = ((P2To.y - P2From.y) * (P1To.x - P1From.x)) - ((P2To.x - P2From.x) * (P1To.y - P1From.y));
-  if (denominator === 0) {
-    return false;
-  }
-  a = P1From.y - P2From.y;
-  b = P1From.x - P2From.x;
-  numerator1 = ((P2To.x - P2From.x) * a) - ((P2To.y - P2From.y) * b);
-  numerator2 = ((P1To.x - P1From.x) * a) - ((P1To.y - P1From.y) * b);
-  a = numerator1 / denominator;
-  b = numerator2 / denominator;
-
-  // if we cast these lines infinitely in both directions, they intersect here:
-  result.x = P1From.x + (a * (P1To.x - P1From.x));
-  result.y = P1From.y + (a * (P1To.y - P1From.y));
-  /*
-          // it is worth noting that this should be the same as:
-          x = P2From.x + (b * (P2To.x - P2From.x));
-          y = P2From.x + (b * (P2To.y - P2From.y));
-          */
-  // if line1 is a segment and line2 is infinite, they intersect if:
-  if (a > 0 && a < 1) {
-    result.onLine1 = true;
-  }
-  // if line2 is a segment and line1 is infinite, they intersect if:
-  if (b > 0 && b < 1) {
-    result.onLine2 = true;
-  }
-  // if line1 and line2 are segments, they intersect if both of the above are true
-  return result.onLine1 && result.onLine2;
-}
-
-// /**
-//  * 
-//  */
-// function lineIntersection(P, r, Q, s) {
-//   // line1 = P + lambda1 * r
-//   // line2 = Q + lambda2 * s
-//   // r and s must be normalized (length = 1)
-//   // returns intersection point O of line1 with line2 = [ Ox, Oy ] 
-//   // returns null if lines do not intersect or are identical
-//   var PQx = Q.x - P.x;
-//   var PQy = Q.y - P.y;
-//   var rx = r.x;
-//   var ry = r.y;
-//   var rxt = -ry;
-//   var ryt = rx;
-//   var qx = PQx * rx + PQy * ry;
-//   var qy = PQx * rxt + PQy * ryt;
-//   var sx = s.x * rx + s.y * ry;
-//   var sy = s.x * rxt + s.y * ryt;
-//   // if lines are identical or do not cross...
-//   if (sy == 0) return false;
-//   const a = qx - qy * sx / sy;
-//   return {
-//     x: P.x + a * rx,
-//     y: P.y + a * ry
-//   };
-// }
 
 /**
  *
@@ -500,9 +428,9 @@ module.exports = function configureSocketIO(io, app) {
         }
 
         // Check for player collision
-        const collision = checkPlayerCollision(key, player.points);
+        const collision = checkPlayerCollision(key, player);
         if (collision) {
-          logger.info(`${key} collision`);
+          console.log(`${key} collision`);
           player.dead = true;
           player.points = [];
           if (displaySocket) displaySocket.emit('collision', collision);
