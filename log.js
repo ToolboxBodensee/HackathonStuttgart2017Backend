@@ -1,9 +1,9 @@
 const winston = require('winston');
-const { combine, timestamp, label, prettyPrint , simple} = winston.format;
+const {combine, timestamp, label, prettyPrint, simple} = winston.format;
 
 const logger = winston.createLogger({
-  level     : 'verbose',
-  format: combine(
+  level     : process.env.NODE_ENV === 'dev' ? 'verbose' : 'error',
+  format    : combine(
     simple()
   ),
   transports: [

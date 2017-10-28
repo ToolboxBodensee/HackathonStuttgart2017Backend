@@ -5,10 +5,11 @@ const logger = require('./log');
 // constants
 const WIDTH = 1280;
 const HEIGHT = 768;
-const PLAYER_SPEED = 40;
+const PLAYER_SPEED = 80;
+const MAX_SEGMENTS = 40;
 const DISPLAY = 'display';
 const TICK_RATE = 500;
-const STEERING_SPEED = 0.2;
+const STEERING_SPEED = 0.3;
 const STARTING_AREA_HORIZONTAL = 30;
 const STARTING_AREA_VERTICAL = 30;
 const CENTER = {
@@ -51,30 +52,23 @@ function checkScreenBoundingBox(point) {
   return outsideHorizontal || outsideVertical;
 }
 
-function checkPlayerCollision(id, lastPosition, newPosition) {
+function checkPlayerCollision(id, playerLine) {
 
   for (const otherId in players) {
     if (otherId === id) continue;
 
     const player = players[otherId];
-    if (player.points.length < 2) return;
+    if (playerLine.length < 2 || player.points.length < 2) return;
+    const otherLine = player.points;
 
-    for (let i = player.points.length - 1; i >= 1; i--) {
-      const checkNewPosition = player.points[i].position;
-      const checkLastPosition = player.points[i - 1].position;
+    const collide = linesCollide(playerLine, otherLine);
 
-      if (lineIntersection(
-          lastPosition.x, lastPosition.y,
-          newPosition.x, newPosition.y,
-          checkLastPosition.x, checkLastPosition.y,
-          checkNewPosition.x, checkNewPosition.y
-        )) {
-        return {
-          deadPlayer  : id,
-          collide     : true,
-          collidedWith: otherId
-        };
-      }
+    if (collide) {
+      return {
+        deadPlayer  : id,
+        collide     : true,
+        collidedWith: otherId
+      };
     }
   }
 
@@ -95,22 +89,26 @@ function degToRad(deg) {
   return deg * Math.PI / 180;
 }
 
-function lineIntersection(line1StartX, line1StartY, line1EndX, line1EndY, line2StartX, line2StartY, line2EndX, line2EndY) {
-  //
-  //const line1 = {
-  //  startX: line1StartX,
-  //  startY: line1StartY,
-  //  endX  : line1EndX,
-  //  endY  : line1EndY
-  //};
-  //const line2 = {
-  //  startX: line2StartX,
-  //  startY: line2StartY,
-  //  endX  : line2EndX,
-  //  endY  : line2EndY
-  //};
-  //logger.info("var line1 = " + JSON.stringify(line1, null, 1));
-  //logger.info("var line2 = " + JSON.stringify(line2, null, 1));
+function linesCollide(lineA, lineB) {
+  for (let k = lineA.length - 1; k >= 1; k--) {
+    for (let j = lineB.length - 1; j >= 1; j--) {
+      const lineASegment = {from: lineA[k - 1], to: lineA[k]};
+      const lineBSegment = {from: lineB[j - 1], to: lineB[k]};
+      if (segmentIntersection(
+          lineASegment.from,
+          lineASegment.to,
+          lineBSegment.from,
+          lineBSegment.to
+        )) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function segmentIntersection(P1From, P1To, P2From, P2To) {
+
   // if the lines intersect, the result contains the x and y of the intersection (treating the lines as infinite) and booleans for whether line segment 1 or line segment 2 contain the point
   let denominator, a, b, numerator1, numerator2, result = {
     x      : null,
@@ -118,24 +116,24 @@ function lineIntersection(line1StartX, line1StartY, line1EndX, line1EndY, line2S
     onLine1: false,
     onLine2: false
   };
-  denominator = ((line2EndY - line2StartY) * (line1EndX - line1StartX)) - ((line2EndX - line2StartX) * (line1EndY - line1StartY));
+  denominator = ((P2To.y - P2From.y) * (P1To.x - P1From.x)) - ((P2To.x - P2From.x) * (P1To.y - P1From.y));
   if (denominator === 0) {
-    return result;
+    return false;
   }
-  a = line1StartY - line2StartY;
-  b = line1StartX - line2StartX;
-  numerator1 = ((line2EndX - line2StartX) * a) - ((line2EndY - line2StartY) * b);
-  numerator2 = ((line1EndX - line1StartX) * a) - ((line1EndY - line1StartY) * b);
+  a = P1From.y - P2From.y;
+  b = P1From.x - P2From.x;
+  numerator1 = ((P2To.x - P2From.x) * a) - ((P2To.y - P2From.y) * b);
+  numerator2 = ((P1To.x - P1From.x) * a) - ((P1To.y - P1From.y) * b);
   a = numerator1 / denominator;
   b = numerator2 / denominator;
 
   // if we cast these lines infinitely in both directions, they intersect here:
-  result.x = line1StartX + (a * (line1EndX - line1StartX));
-  result.y = line1StartY + (a * (line1EndY - line1StartY));
+  result.x = P1From.x + (a * (P1To.x - P1From.x));
+  result.y = P1From.y + (a * (P1To.y - P1From.y));
   /*
           // it is worth noting that this should be the same as:
-          x = line2StartX + (b * (line2EndX - line2StartX));
-          y = line2StartX + (b * (line2EndY - line2StartY));
+          x = P2From.x + (b * (P2To.x - P2From.x));
+          y = P2From.x + (b * (P2To.y - P2From.y));
           */
   // if line1 is a segment and line2 is infinite, they intersect if:
   if (a > 0 && a < 1) {
@@ -298,8 +296,12 @@ module.exports = function configureSocketIO(io, app) {
 
       displaySocket.emit('playerList', players);
     } else {
-      const name = socket.handshake.query.name || chance.name();
+      let name = socket.handshake.query.name || chance.name();
       logger.info(`${type} connected ${id} ${name}`);
+
+      if (type === 'bot') {
+        name = '(BOT)' + name;
+      }
 
       // Attach events to socket
       socket.on('disconnect', clientDisconnected(socket));
@@ -309,7 +311,8 @@ module.exports = function configureSocketIO(io, app) {
       players[id] = {
         name  : name,
         color : getColor(),
-        points: []
+        points: [],
+        isBot : type === 'bot'
       };
 
       socket.emit('connectionSuccess', players[id]);
@@ -360,7 +363,6 @@ module.exports = function configureSocketIO(io, app) {
     return function (rad) {
       const id = socket.id;
       const last = players[id].direction || 0;
-
       players[id].direction = last + (rad * delta * STEERING_SPEED);
     };
   }
@@ -468,6 +470,12 @@ module.exports = function configureSocketIO(io, app) {
         const lastPoint = R.last(player.points);
         if (!lastPoint) return;
 
+        if (player.isBot) {
+          const last = player.direction || 0;
+          const direction = chance.bool() ? -1 : 1;
+          player.direction = last + (direction * delta * STEERING_SPEED);
+        }
+
         // Calculate x,y vec from angle
         const dv = vectorFromAngle(player.direction);
 
@@ -492,7 +500,7 @@ module.exports = function configureSocketIO(io, app) {
         }
 
         // Check for player collision
-        const collision = checkPlayerCollision(key, lastPoint.position, newPoint.position);
+        const collision = checkPlayerCollision(key, player.points);
         if (collision) {
           logger.info(`${key} collision`);
           player.dead = true;
@@ -506,6 +514,9 @@ module.exports = function configureSocketIO(io, app) {
 
         // Add this newPoint to history
         player.points.push(newPoint);
+        if (player.points.length > MAX_SEGMENTS) {
+          player.points.splice(0, 1);
+        }
       }, players);
 
       // Send tick
