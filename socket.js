@@ -1,10 +1,12 @@
 const R = require('ramda');
 const Chance = require('chance');
 
-// config
+// constants
 const WIDTH = 1280;
 const HEIGHT = 768;
-const PIXEL_PER_TICK = 100;
+const PIXEL_PER_TICK = 40;
+const DISPLAY = 'display';
+const TICK_RATE = 100;
 
 //
 const chance = new Chance();
@@ -21,20 +23,64 @@ let displaySocket = null;
 //
 let gameRunning = false;
 
+
+//********************************************************************************
+// HELPER
+//********************************************************************************
+/**
+ * 
+ */
+function radToDeg(rad) {
+  return 0;
+}
+
+/**
+ * 
+ */
+function degToRad(deg) {
+  return 0;
+}
+
+/**
+ * 
+ */
+function randomPosition() {
+  return {
+    x: chance.integer({
+      min: 0,
+      max: WIDTH
+    }),
+    y: chance.integer({
+      min: 0,
+      max: HEIGHT
+    }),
+  };
+}
+
+/**
+ * Direction in radians
+ */
+function randomDirection() {
+  return chance.integer({
+    min: 0,
+    max: Math.PI * 2
+  });
+}
+
+function vectorFromAngle(rad) {
+  return {
+    x: Math.cos(rad),
+    y: Math.sin(rad)
+  }
+}
+
+/**
+ * 
+ */
 function resetGame() {
   // Reset history for every player
   R.forEachObjIndexed(function (player, id) {
     player.points = [];
-
-    // Place player random on the map
-    const position = {
-      x: Math.random() * WIDTH,
-      y: Math.random() * HEIGHT
-    }
-    const direction = Math.random() * 360;
-    player.position = position;
-    player.direction = direction;
-
   }, players);
 }
 
@@ -42,6 +88,9 @@ module.exports = function configureSocketIO(io) {
   //********************************************************************************
   // FROM CLIENT EVENTS
   //********************************************************************************
+  /**
+   * 
+   */
   function clientConnected(socket) {
     const id = socket.id;
     const type = socket.handshake.query.type || 'player';
@@ -54,7 +103,7 @@ module.exports = function configureSocketIO(io) {
     socket.on('changeDirection', clientChangedDirection);
     socket.on('displayCreated', displayCreated);
 
-    if (type === 'display') {
+    if (type === DISPLAY) {
       resetGame();
 
       displaySocket = socket;
@@ -66,17 +115,16 @@ module.exports = function configureSocketIO(io) {
       // Add a new player to players object
       players[id] = {
         name: chance.name(),
-        color: chance.color(),
+        color: chance.color({
+          format: 'hex'
+        }),
         points: []
       };
 
       if (gameRunning) {
         // Place player random on the map
-        const position = {
-          x: Math.random() * WIDTH,
-          y: Math.random() * HEIGHT
-        }
-        const direction = Math.random() * 360;
+        const position = randomPosition();
+        const direction = randomDirection();
         players[id].position = position;
         players[id].direction = direction;
       }
@@ -86,6 +134,9 @@ module.exports = function configureSocketIO(io) {
     }
   }
 
+  /**
+   * 
+   */
   function clientDisconnected(socket) {
     return function () {
       const id = socket.id;
@@ -108,29 +159,62 @@ module.exports = function configureSocketIO(io) {
     }
   }
 
+  /**
+   * 
+   */
   function clientChangedDirection(socket) {
     console.log('a user changed his direction');
     someoneChangedDirection();
   }
 
+  /**
+   * 
+   */
   function displayCreated(socket) {
     console.log('Display is initialized');
   }
 
+  /**
+   * 
+   */
   function displayStartedGame() {
+    if (gameRunning) return;
     console.log('Display started game');
     gameRunning = true;
     resetGame();
+
+    // Set initial position for every player
+    R.forEachObjIndexed(function (player, id) {
+      // Place player random on the map
+      const position = randomPosition();
+      const direction = randomDirection();
+
+      const point = {
+        position,
+        direction
+      };
+
+      player.points.push(point);
+    }, players);
+
+    console.log(players);
   }
 
+  /**
+   * 
+   */
   function displayStoppedGame() {
-    console.log('Display stopped game');    
+    if (!gameRunning) return;
+    console.log('Display stopped game');
     gameRunning = false;
   }
 
   //********************************************************************************
   // TO FRONTEND EVENTS
   //********************************************************************************
+  /**
+   * 
+   */
   function someoneJoined(id, position, direction) {
     io.emit('joined', {
       id,
@@ -139,18 +223,30 @@ module.exports = function configureSocketIO(io) {
     });
   }
 
+  /**
+   * 
+   */
   function someoneLeft() {
     io.emit('left');
   }
 
+  /**
+   * 
+   */
   function someoneChangedDirection() {
     io.emit('changedDirection');
   }
 
+  /**
+   * 
+   */
   function collisionOccured() {
     io.emit('collision');
   }
 
+  /**
+   * 
+   */
   function tick() {
     let delta = 0;
     if (lastTick) {
@@ -166,13 +262,13 @@ module.exports = function configureSocketIO(io) {
 
         if (!lastPoint) return;
 
-        // Calculate x,y vec from angle      
-        const dx = Math.sin(lastPoint.direction);
-        const dy = Math.sin(lastPoint.direction);
+        // Calculate x,y vec from angle
+        const dv = vectorFromAngle(lastPoint.direction);
+        
 
         // Translate x,y 
-        const tx = lastPoint.position.x + (PIXEL_PER_TICK * dx * delta);
-        const ty = lastPoint.position.y + (PIXEL_PER_TICK * dy * delta);
+        const tx = lastPoint.position.x + (PIXEL_PER_TICK * dv.x * delta);
+        const ty = lastPoint.position.y + (PIXEL_PER_TICK * dv.y * delta);
 
         // Create a new point
         const newPoint = {
@@ -205,6 +301,5 @@ module.exports = function configureSocketIO(io) {
   // EVENT MAPPING
   //********************************************************************************
   io.on('connection', clientConnected);
-
-  const tickID = setInterval(tick, 1000);
+  const tickID = setInterval(tick, TICK_RATE);
 }
