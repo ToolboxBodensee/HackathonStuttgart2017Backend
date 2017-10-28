@@ -15,9 +15,8 @@ const CENTER = {
   x: WIDTH * 0.5,
   y: HEIGHT * 0.5
 };
-const COLORS = ['red', 'green', 'yellow', 'orange', 'cyan'];
 
-const DEV = process.env.NODE_ENV !== 'prod';
+const COLORS = ['#EF476F', '#06D6A0', '#FFD166', '#00C0FF', '#003559'];
 
 //
 const chance = new Chance();
@@ -228,7 +227,6 @@ function randomPosition() {
       break;
   }
 
-  logger.info(position);
   return position;
 }
 
@@ -241,13 +239,7 @@ function randomDirection(from) {
     y: CENTER.y - from.y
   };
 
-  const direction = Math.atan2(translatedCenter.y, translatedCenter.x);
-  return direction;
-
-  // return chance.integer({
-  //   min: 0,
-  //   max: Math.PI * 2
-  // });
+  return Math.atan2(translatedCenter.y, translatedCenter.x);
 }
 
 function vectorFromAngle(rad) {
@@ -276,7 +268,7 @@ function resetGame() {
   unpickedColors = COLORS;
 
   // Reset history for every player
-  R.forEachObjIndexed(function (player, id) {
+  R.forEachObjIndexed(function (player) {
     player.points = [];
     player.dead = false;
     player.color = getColor();
@@ -535,7 +527,9 @@ module.exports = function configureSocketIO(io, app) {
 
   app.get('/', function (req, res) {
     const playerList = R.values(R.map((value) => {
-      return value.name;
+      return {
+        name: value.name, dead: value.dead
+      };
     }, players));
 
     const result = {players: playerList, count: playerList.length};
