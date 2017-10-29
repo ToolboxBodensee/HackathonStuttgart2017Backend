@@ -55,8 +55,8 @@ let delta = 0;
  *
  */
 function checkScreenBoundingBox(point) {
-  const outsideHorizontal = point.x > WIDTH || point.x < 0;
-  const outsideVertical = point.y > HEIGHT || point.y < 0;
+  const outsideHorizontal = point.x > (WIDTH + 60) || point.x < (-60);
+  const outsideVertical = point.y > (HEIGHT + 60) || point.y < (-60);
   return outsideHorizontal || outsideVertical;
 }
 
