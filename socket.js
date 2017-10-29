@@ -23,8 +23,15 @@ const COLORS = ['#EF476F',
   '#06D6A0',
   '#FFD166',
   '#00C0FF',
-  '#FFFFFF'
-  //'#003559'
+  '#FFFFFF',
+  '#02F7FF',
+  '#FF0A14',
+  '#FFFC0E',
+  '#11FF3A',
+  '#FF08F6',
+  '#DDFF99',
+  '#FF7ABB',
+  '#A726CF'
 ];
 
 //
@@ -180,15 +187,7 @@ function vectorFromAngle(rad) {
 }
 
 function getColor() {
-  if (unpickedColors.length > 0) {
-    const color = chance.pickone(unpickedColors);
-    unpickedColors = R.without(color, unpickedColors);
-    return color;
-  } else {
-    return chance.color({
-      format: 'hex'
-    });
-  }
+  return chance.pickone(COLORS);
 }
 
 /**
