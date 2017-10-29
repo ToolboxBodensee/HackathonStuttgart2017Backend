@@ -114,9 +114,6 @@ function linesCollide(lineA, lineB) {
  *
  */
 function randomPosition() {
-  const startLeft = chance.bool();
-  const startTop = chance.bool();
-
   let position = {};
 
   const startSector = chance.pickone(['left', 'right', 'top', 'bottom']);
@@ -124,7 +121,7 @@ function randomPosition() {
   switch (startSector) {
     case 'left':
       position = {
-        x: 0,
+        x: STARTING_AREA_HORIZONTAL,
         y: chance.integer({
           min: STARTING_AREA_VERTICAL,
           max: HEIGHT - STARTING_AREA_VERTICAL
@@ -133,7 +130,7 @@ function randomPosition() {
       break;
     case 'right':
       position = {
-        x: WIDTH,
+        x: WIDTH - STARTING_AREA_HORIZONTAL,
         y: chance.integer({
           min: STARTING_AREA_VERTICAL,
           max: HEIGHT - STARTING_AREA_VERTICAL
@@ -146,7 +143,7 @@ function randomPosition() {
           min: STARTING_AREA_HORIZONTAL,
           max: WIDTH - STARTING_AREA_HORIZONTAL
         }),
-        y: 0
+        y: STARTING_AREA_VERTICAL
       };
       break;
     case 'bottom':
@@ -155,7 +152,7 @@ function randomPosition() {
           min: STARTING_AREA_HORIZONTAL,
           max: WIDTH - STARTING_AREA_HORIZONTAL
         }),
-        y: HEIGHT
+        y: HEIGHT - STARTING_AREA_VERTICAL
       };
       break;
   }
