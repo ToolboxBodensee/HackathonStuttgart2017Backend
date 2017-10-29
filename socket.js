@@ -19,7 +19,8 @@ const CENTER = {
   y: HEIGHT * 0.5
 };
 
-const COLORS = ['#EF476F',
+const COLORS = [
+  '#EF476F',
   '#06D6A0',
   '#FFD166',
   '#00C0FF',
@@ -30,7 +31,6 @@ const COLORS = ['#EF476F',
   '#11FF3A',
   '#FF08F6',
   '#DDFF99',
-  '#FF7ABB',
   '#A726CF'
 ];
 
@@ -187,7 +187,15 @@ function vectorFromAngle(rad) {
 }
 
 function getColor() {
-  return chance.pickone(COLORS);
+  if (unpickedColors.length > 0) {
+    const color = chance.pickone(unpickedColors);
+    unpickedColors = R.without(color, unpickedColors);
+    return color;
+  } else {
+    return chance.color({
+      format: 'hex'
+    });
+  }
 }
 
 /**
